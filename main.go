@@ -28,8 +28,8 @@ func loadConfig() Config {
 		NatsURL:           envOr("NATS_URL", "nats://nats.roundtable.svc:4222"),
 		FleetID:           envOr("FLEET_ID", "fleet-default"),
 		AgentID:           envOr("AGENT_ID", "unknown"),
-		OpenClawURL:       envOr("OPENCLAW_WEBHOOK_URL", "http://localhost:18789/v1/chat/completions"),
-		OpenClawToken:     os.Getenv("OPENCLAW_TOKEN"),
+		OpenClawURL:       envOr("OPENCLAW_WEBHOOK_URL", "http://localhost:18789/hooks/agent"),
+		OpenClawToken:     envOr("OPENCLAW_HOOK_TOKEN", os.Getenv("OPENCLAW_TOKEN")),
 		HeartbeatInterval: 60 * time.Second,
 	}
 

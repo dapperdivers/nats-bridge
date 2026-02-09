@@ -144,8 +144,8 @@ func (b *Bridge) handleMessage(ctx context.Context, msg jetstream.Msg) {
 		return
 	}
 
-	// Forward to OpenClaw
-	resp, err := b.forwardToOpenClaw(ctx, msg.Data())
+	// Forward to OpenClaw via webhook
+	resp, err := b.forwardToOpenClaw(ctx, env)
 	if err != nil {
 		log.Printf("ERROR: forward to openclaw: %v", err)
 		_ = msg.NakWithDelay(10 * time.Second)
@@ -186,12 +186,20 @@ func (b *Bridge) handleMessage(ctx context.Context, msg jetstream.Msg) {
 	log.Printf("processed task %s → %s", env.ID, resultSubject)
 }
 
-func (b *Bridge) forwardToOpenClaw(ctx context.Context, payload []byte) ([]byte, error) {
+func (b *Bridge) forwardToOpenClaw(ctx context.Context, env Envelope) ([]byte, error) {
+	// Extract task from payload
+	var taskPayload TaskPayload
+	if err := json.Unmarshal(env.Payload, &taskPayload); err != nil {
+		// If payload isn't structured, use raw as the message
+		taskPayload.Task = string(env.Payload)
+	}
+
+	// Build webhook payload for /hooks/agent
 	body := map[string]interface{}{
-		"model": "openclaw",
-		"messages": []map[string]string{
-			{"role": "user", "content": string(payload)},
-		},
+		"message":    taskPayload.Task,
+		"name":       fmt.Sprintf("NATS/%s", env.From),
+		"sessionKey": fmt.Sprintf("nats:%s:%s", env.From, env.ID),
+		"deliver":    false, // Don't deliver to chat — we handle results via NATS
 	}
 
 	data, _ := json.Marshal(body)
@@ -215,10 +223,12 @@ func (b *Bridge) forwardToOpenClaw(ctx context.Context, payload []byte) ([]byte,
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
+	// /hooks/agent returns 202 (accepted) for async runs
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("openclaw returned %d: %s", resp.StatusCode, string(respBody[:min(200, len(respBody))]))
 	}
 
+	log.Printf("openclaw accepted task (HTTP %d)", resp.StatusCode)
 	return respBody, nil
 }
 
