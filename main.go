@@ -80,6 +80,7 @@ func main() {
 		log.Fatalf("failed to start bridge: %v", err)
 	}
 
+	bridgeRef = b
 	setReady(true)
 	log.Println("nats-bridge ready")
 
